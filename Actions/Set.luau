@@ -5,27 +5,32 @@ local Specs = require(ReplicatedStorage.Modules.Specs)
 
 local Set = {}
 
-local function getPlayer(Context)
-	return Context.Player
-end
-
-local function getHumanoid(State)
-	return State.Humanoid
-end
-
-local function getRootPart(State)
-	return State.RootPart
-end
-
-local function getAnimations()
-	return ReplicatedStorage:WaitForChild("Animations")
-end
-
 local function fireControlDisplay(Context, text)
 	local misc = Context.Player.PlayerGui:FindFirstChild("Misc")
 	if misc and misc:FindFirstChild("ControlDisplay") then
 		misc.ControlDisplay.Event:Fire(text)
 	end
+end
+
+local function startSetCooldown(State)
+	State.SetCooldown = true
+
+	task.delay(State.SetCooldownTime or 0.25, function()
+		State.SetCooldown = false
+	end)
+end
+
+local function playAnimation(Context, animation)
+	if not animation then
+		warn("[Set] Missing animation")
+		return nil
+	end
+
+	return AnimationModule:PlayAnimation(Context.Player, {
+		AdjustSpeed = 1,
+		AdjustWeight = 1,
+		Animation = animation,
+	})
 end
 
 local function isFacingCamera(State)
@@ -43,7 +48,6 @@ local function isFacingCamera(State)
 	local cameraLookVector = camera.CFrame.LookVector
 
 	local relativeDirection = rootPart.CFrame:VectorToObjectSpace(cameraLookVector)
-
 	local angle = math.atan2(relativeDirection.X, -relativeDirection.Z)
 	local degree = math.deg(angle)
 
@@ -72,152 +76,164 @@ local function isFacingCamera(State)
 	return "JFront"
 end
 
-local function playSettingAnimation(Context, animation)
-	if not animation then
-		warn("[Set] Missing setting animation")
-		return
+local function stopSpikeIdle(State)
+	if State.AvailableSpikeIdle then
+		State.AvailableSpikeIdle:Stop()
+		State.AvailableSpikeIdle:Remove()
+		State.AvailableSpikeIdle = nil
 	end
-
-	AnimationModule:PlayAnimation(Context.Player, {
-		AdjustSpeed = 1,
-		AdjustWeight = 1,
-		Animation = animation,
-	})
 end
 
-function Set.Front(State, Context)
-	local humanoid = getHumanoid(State)
+local function canSet(State)
+	if State.SetCooldown then
+		return false
+	end
+	if not State.Setable then
+		return false
+	end
+	if State.Dived then
+		return false
+	end
+	if State.JumpSetted then
+		return false
+	end
+	if State.Spiked then
+		return false
+	end
+
+	return true
+end
+
+local function resetGroundSetState(State, Context, delayTime)
+	task.delay(delayTime or 0.45, function()
+		local humanoid = State.Humanoid
+
+		if humanoid and humanoid.FloorMaterial ~= Enum.Material.Air then
+			State.JumpSetted = false
+			State.Setable = true
+			State.Spikable = true
+		end
+	end)
+end
+
+local function doSetModeSet(State, Context)
+	local camera = workspace.CurrentCamera
+	local direction = isFacingCamera(State)
+
+	stopSpikeIdle(State)
+
+	State.JumpSetted = true
+	State.Setable = false
+	State.Spikable = false
+
+	Context.PlayerAction:FireServer("SetMode", camera.CFrame.LookVector.Unit)
+	Context.ChangeStatus:FireServer("Setting")
+
+	local setModeLibrary = AnimationModule.Library.Setting.SetMode
+	local animation = setModeLibrary[direction] or setModeLibrary.JFront
+
+	playAnimation(Context, animation)
+end
+
+local function doNormalFrontSet(State, Context)
+	local humanoid = State.Humanoid
 	if not humanoid then
 		return
 	end
 
-	if not State.Setable then
-		return
+	stopSpikeIdle(State)
+
+	State.JumpSetted = true
+	State.Spikable = false
+
+	Context.PlayerAction:FireServer("NotSetMode")
+	Context.ChangeStatus:FireServer("Setting")
+
+	if humanoid.FloorMaterial == Enum.Material.Air then
+		playAnimation(Context, AnimationModule.Library.Setting.Default_Small.JFront)
+	else
+		playAnimation(Context, AnimationModule.Library.Setting.Default_Small.FrontSet)
+		resetGroundSetState(State, Context, 0.45)
 	end
-	if State.Dived then
-		return
-	end
-	if State.SpaceHeld then
+
+	task.delay(1, function()
+		State.Spikable = true
+	end)
+end
+
+local function doBackSet(State, Context)
+	local humanoid = State.Humanoid
+	if not humanoid then
 		return
 	end
 
+	stopSpikeIdle(State)
+
+	State.JumpSetted = true
+	State.Spikable = false
+
+	Context.PlayerAction:FireServer("NotSetMode")
+	Context.ChangeStatus:FireServer("Backsetting")
+
+	if humanoid.FloorMaterial == Enum.Material.Air then
+		playAnimation(Context, AnimationModule.Library.Setting.Default_Small.JBack)
+	else
+		playAnimation(Context, AnimationModule.Library.Setting.Default_Small.BackSet)
+		resetGroundSetState(State, Context, 0.45)
+	end
+
+	task.delay(1, function()
+		State.Spikable = true
+	end)
+end
+
+function Set.Front(State, Context)
+	local humanoid = State.Humanoid
+	if not humanoid then
+		return
+	end
+	if not canSet(State) then
+		return
+	end
+	startSetCooldown(State)
 	fireControlDisplay(Context, "Front Set")
 
-	if State.Ready and not State.Spiked then
-		State.Ready = false
-		State.Spikable = false
-
-		local camera = workspace.CurrentCamera
-
-		if State.SetMode then
-			Context.PlayerAction:FireServer("SetMode", camera.CFrame.LookVector.Unit)
-
-			local direction = isFacingCamera(State)
-			playSettingAnimation(Context, AnimationModule.Library.Setting.SetMode[direction])
-
-			Context.ChangeStatus:FireServer("Setting")
-		else
-			Context.PlayerAction:FireServer("NotSetMode")
-			playSettingAnimation(Context, AnimationModule.Library.Setting.Default_Small.FrontSet)
-
-			Context.ChangeStatus:FireServer("Setting")
-		end
-
-		task.delay(0.8, function()
-			State.Spikable = true
-
-			if not State.AutoServe then
-				State.Ready = true
-			end
-		end)
-
-		return
-	end
-
-	if humanoid.FloorMaterial == Enum.Material.Air and not State.JumpSetted and not State.Spiked then
-		State.JumpSetted = true
-		State.Spikable = false
-
-		local camera = workspace.CurrentCamera
-
-		if State.SetMode then
-			Context.PlayerAction:FireServer("SetMode", camera.CFrame.LookVector.Unit)
-
-			local direction = isFacingCamera(State)
-			playSettingAnimation(Context, AnimationModule.Library.Setting.SetMode[direction])
-
-			Context.ChangeStatus:FireServer("Setting")
-		else
-			Context.PlayerAction:FireServer("NotSetMode")
-			playSettingAnimation(Context, AnimationModule.Library.Setting.Default_Small.JFront)
-
-			Context.ChangeStatus:FireServer("Setting")
-		end
-
-		task.delay(1, function()
-			State.Spikable = true
-		end)
+	if State.SetMode then
+		doSetModeSet(State, Context)
+	else
+		doNormalFrontSet(State, Context)
 	end
 end
 
 function Set.Back(State, Context)
-	local humanoid = getHumanoid(State)
+	local humanoid = State.Humanoid
 	if not humanoid then
 		return
 	end
-
-	if State.SetMode and humanoid.FloorMaterial == Enum.Material.Air then
+	if not canSet(State) then
 		return
 	end
-	if not State.Setable then
-		return
-	end
-	if State.Dived then
-		return
-	end
-	if State.SpaceHeld then
+	startSetCooldown(State)
+	if State.SetMode then
+		Set.Front(State, Context)
 		return
 	end
 
 	fireControlDisplay(Context, "Back Set")
-
-	if State.Ready and not State.Spiked then
-		State.Ready = false
-		State.Spikable = false
-
-		playSettingAnimation(Context, AnimationModule.Library.Setting.Default_Small.BackSet)
-		Context.ChangeStatus:FireServer("Backsetting")
-
-		task.delay(0.8, function()
-			State.Spikable = true
-
-			if not State.AutoServe then
-				State.Ready = true
-			end
-		end)
-
-		return
-	end
-
-	if State.Jumped and not State.JumpSetted and not State.Spiked then
-		State.JumpSetted = true
-		State.Spikable = false
-
-		playSettingAnimation(Context, AnimationModule.Library.Setting.Default_Small.JBack)
-		Context.ChangeStatus:FireServer("Backsetting")
-
-		task.delay(1, function()
-			State.Spikable = true
-		end)
-	end
+	doBackSet(State, Context)
 end
 
 function Set.Dump(State, Context)
-	local rootPart = getRootPart(State)
+	local rootPart = State.RootPart
 	if not rootPart then
 		return
 	end
-	if State.Dived then
+	if not canSet(State) then
+		return
+	end
+	startSetCooldown(State)
+	if State.SetMode then
+		Set.Front(State, Context)
 		return
 	end
 
@@ -237,41 +253,24 @@ function Set.Dump(State, Context)
 
 	fireControlDisplay(Context, "Dumping")
 
+	stopSpikeIdle(State)
+
+	State.JumpSetted = true
+	State.Spikable = false
+
 	local isLeftDump = shifting > 0
+
 	local animation = isLeftDump and AnimationModule.Library.Setting.Default_Small.LeftDump
 		or AnimationModule.Library.Setting.Default_Small.RightDump
 
 	local status = isLeftDump and "DumpingL" or "DumpingR"
 
-	if State.Ready and not State.Spiked then
-		State.Ready = false
-		State.Spikable = false
+	playAnimation(Context, animation)
+	Context.ChangeStatus:FireServer(status)
 
-		playSettingAnimation(Context, animation)
-		Context.ChangeStatus:FireServer(status)
-
-		task.delay(1, function()
-			State.Spikable = true
-
-			if not State.AutoServe then
-				State.Ready = true
-			end
-		end)
-
-		return
-	end
-
-	if State.Jumped and not State.JumpSetted and State.JumpMode and rootPart.Velocity.Y > 0 and not State.Spiked then
-		State.JumpSetted = true
-		State.Spikable = false
-
-		playSettingAnimation(Context, animation)
-		Context.ChangeStatus:FireServer(status)
-
-		task.delay(1, function()
-			State.Spikable = true
-		end)
-	end
+	task.delay(1, function()
+		State.Spikable = true
+	end)
 end
 
 return Set

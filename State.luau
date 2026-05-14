@@ -13,6 +13,28 @@ local State = {
 	JumpSetted = false,
 	Spawned = false,
 
+	BlockHolding = false,
+	BlockHoldStarted = 0,
+	BlockHoldDuration = 0.6,
+	BlockJumpQueued = false,
+
+	BarsConnection = nil,
+	Stamina = 10,
+	MaxStamina = nil,
+
+	SetCooldown = false,
+	PowerCooldown = false,
+
+	SetCooldownTime = 0.25,
+	PowerCooldownTime = 0.12,
+
+	StaminaRegenRunning = false,
+
+	SpaceHeld = false,
+	GlideSlowRate = 3.5,
+	MinGlideSpeedMultiplier = 0.15,
+	ServeSpinConnection = nil,
+	VPressStage = "Horiz",
 	AutoServe = false,
 	Spikable = true,
 	Sprinting = false,
@@ -23,6 +45,11 @@ local State = {
 
 	HoldingPowerUp = false,
 	HoldingPowerDown = false,
+
+	AvailableRecAnim = nil,
+	CurrentTilt = "None",
+
+	BlockBarTween = nil,
 
 	Spectator = false,
 	PowerChangeable = true,
@@ -36,15 +63,16 @@ local State = {
 	Serve = 0,
 
 	SetMode = false,
-	SpaceHeld = false,
 	SprintHeld = false,
-	CurrentTilt = "None",
 	InAirTiltable = false,
 
 	AvailableSpikeIdle = nil,
 	AvailableJumpDelay = nil,
 	AvailableBlockAnim = nil,
 	LandingConnection = nil,
+
+	CurrentDivingAnim = nil,
+	DiveBounce = true,
 
 	Character = nil,
 	Humanoid = nil,

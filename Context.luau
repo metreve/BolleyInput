@@ -32,7 +32,8 @@ Context.EffectHandler = Context.Remotes:WaitForChild("EffectHandler")
 Context.PowerHandler = Context.Remotes:WaitForChild("PowerHandler")
 Context.PlayerAction = Context.Remotes:WaitForChild("PlayerAction")
 
-Context.Data = Player:WaitForChild("Data", math.huge)
+Context.Data = require(ReplicatedStorage.Modules.Data.DataController)
+Context.Data:Init()
 Context.PlayerGui = Player:WaitForChild("PlayerGui")
 
 return Context

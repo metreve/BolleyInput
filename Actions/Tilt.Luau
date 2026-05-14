@@ -139,7 +139,7 @@ function Tilt.Apply(State, Context, direction)
 		return
 	end
 
-	local oldFov = Context.Data:GetAttribute("FOV") or workspace.CurrentCamera.FieldOfView
+	local oldFov = Context.Data:Get("FOV", workspace.CurrentCamera.FieldOfView)
 
 	if direction == "Forward" then
 		fireControlDisplay(Context, "Jump + W")
@@ -156,7 +156,7 @@ function Tilt.Apply(State, Context, direction)
 
 		tilt.CFrame = origin.Value * CFrame.Angles(math.rad(-90), 0, 0)
 
-		if Context.Data:GetAttribute("FOVE") then
+		if Context.Data:Get("FOVE", true) then
 			if not State.FovApplied then
 				State.FovApplied = true
 

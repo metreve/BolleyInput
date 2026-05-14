@@ -1,7 +1,10 @@
 local JumpMode = {}
 
-local function updateBars()
-	-- Later this will call UI.Bars.Update()
+local function fireControlDisplay(Context, text)
+	local misc = Context.Player.PlayerGui:FindFirstChild("Misc")
+	if misc and misc:FindFirstChild("ControlDisplay") then
+		misc.ControlDisplay.Event:Fire(text)
+	end
 end
 
 function JumpMode.Toggle(State, Context)
@@ -9,12 +12,12 @@ function JumpMode.Toggle(State, Context)
 		return
 	end
 
-	State.JumpMode = not State.JumpMode
+	-- Toggle between spike and block.
+	-- Leaving setter mode when manually switching jump/block.
 	State.SetMode = false
+	State.JumpMode = not State.JumpMode
 
-	Context.Player.PlayerGui.Misc.ControlDisplay.Event:Fire("Jumpmode Switch")
-
-	updateBars()
+	fireControlDisplay(Context, "Jumpmode Switch")
 end
 
 function JumpMode.SetMode(State, Context)
@@ -22,17 +25,16 @@ function JumpMode.SetMode(State, Context)
 		return
 	end
 
-	Context.Player.PlayerGui.Misc.ControlDisplay.Event:Fire("Setmode Switch")
-
+	-- Setter mode is still a jump/spike-style jump, NOT blocker mode.
 	State.SetMode = not State.SetMode
 
 	if State.SetMode then
-		State.JumpMode = false
+		State.JumpMode = true
 	else
 		State.JumpMode = true
 	end
 
-	updateBars()
+	fireControlDisplay(Context, "Setmode Switch")
 end
 
 return JumpMode
